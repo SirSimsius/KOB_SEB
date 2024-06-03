@@ -1,0 +1,589 @@
+---
+title: "SEB_KOB_Stats"
+author: "Simon Kleiner"
+date: "2024-04-29"
+output: word_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library("tidyverse")
+
+setwd("C:/Users/simon/OneDrive - University of Copenhagen/Documents/Geografi/Bachelorarbejde/Energybudget/Data")
+
+```
+
+```{r}
+# Load all flux data 
+flux_all <- read_csv("./GEE/10062019_fluxes_all.csv") 
+flux_sub <- read_csv("./GEE/10062019_fluxes_subarea.csv")
+
+flux_all <- flux_all %>% na.omit %>% mutate(class, count, vegetation = case_when((class == 1) ~ 'Barren Ground', (class == 2) ~ 'Abrasion surfaces', (class == 3) ~ 'Fen', (class == 4) ~ 'Dry Heath', (class == 5) ~ 'Wet Heath', (class ==  6) ~ 'Copse Shrub', (class == 7) ~ 'Shadow', (class == 8) ~ 'Water', (class == 9) ~ 'Snow'), G, H, LE, Rnet, albedo = constant, Bowen = H/LE, G_fraction = G/Rnet, H_fraction = H/Rnet, E_fraction = LE/Rnet, .keep="none") %>% relocate(class, vegetation, count,  .before = G)
+
+flux_sub <- flux_sub %>% na.omit %>% mutate(class, count, vegetation = case_when((class == 1) ~ 'Barren Ground', (class == 2) ~ 'Abrasion surfaces', (class == 3) ~ 'Fen', (class == 4) ~ 'Dry Heath', (class == 5) ~ 'Wet Heath', (class ==  6) ~ 'Copse Shrub', (class == 7) ~ 'Shadow', (class == 8) ~ 'Water', (class == 9) ~ 'Snow'), G, H, LE, Rnet, albedo = constant, Bowen = H/LE, G_fraction = G/Rnet, H_fraction = H/Rnet, E_fraction = LE/Rnet, .keep="none") %>% relocate(class, vegetation, count, .before = G)
+
+flux_all$class <- as.factor(flux_all$class)
+flux_sub$class <- as.factor(flux_sub$class)
+flux_all$vegetation <- as.factor(flux_all$vegetation)
+flux_sub$vegetation <- as.factor(flux_sub$vegetation)
+
+str(flux_all)
+```
+
+```{r}
+head(flux_all)
+head(flux_sub)
+
+flux_veg_all <- flux_all %>% filter(class== (3:6))
+flux_veg_sub <- flux_sub %>% filter(class== (3:6))
+flux_veg_all %>% count(class)
+flux_veg_sub %>% count(class)
+
+```
+
+```{r}
+#Check on the distribution of fluxes
+hist(flux_veg_all$G)
+hist(flux_veg_all$H)
+hist(flux_veg_all$LE)
+hist(flux_veg_all$Rnet)
+```
+
+```{r Mean fluxes per vegetation type}
+avg_fluxes_all <- flux_veg_all %>% group_by(vegetation) %>% summarize(avg_Rnet = mean(Rnet), avg_G = mean(G), avg_H = mean(H), avg_LE = mean(LE), avg_r = mean(albedo), avg_B = mean(Bowen), avg_G_frac = mean(G_fraction), avg_H_frac = mean(H_fraction), avg_LE_frac = mean(E_fraction))
+
+avg_fluxes_all_wt <- flux_veg_all %>% group_by(vegetation) %>% summarize(avg_Rnet = weighted.mean(Rnet, count), avg_G = weighted.mean(G, count), avg_H = weighted.mean(H, count), avg_LE = weighted.mean(LE, count), avg_r = weighted.mean(albedo, count), avg_B = weighted.mean(Bowen, count), avg_G_frac = weighted.mean(G_fraction, count), avg_H_frac = weighted.mean(H_fraction, count), avg_LE_frac = weighted.mean(E_fraction, count))
+
+avg_fluxes_sub <- flux_veg_sub %>% group_by(vegetation) %>% summarize(avg_Rnet = mean(Rnet), avg_G = mean(G), avg_H = mean(H), avg_LE = mean(LE), avg_r = mean(albedo), avg_B = mean(Bowen), avg_G_frac = mean(G_fraction), avg_H_frac = mean(H_fraction), avg_LE_frac = mean(E_fraction))
+
+avg_fluxes_sub_wt <- flux_veg_sub %>% group_by(vegetation) %>% summarize(avg_Rnet = weighted.mean(Rnet, count), avg_G = weighted.mean(G, count), avg_H = weighted.mean(H, count), avg_LE = weighted.mean(LE, count), avg_r = weighted.mean(albedo, count), avg_B = weighted.mean(Bowen, count), avg_G_frac = weighted.mean(G_fraction, count), avg_H_frac = weighted.mean(H_fraction, count), avg_LE_frac = weighted.mean(E_fraction, count))
+
+
+# This should be weighted (use weighted.mean()) as the ANOVA comparison of the means is also weighted. Unweighted averages might be misleading. OR 
+
+```
+
+
+```{r ANOVA tests}
+
+# CLASSES 2 = 'Abrasion surface', 3='Fen', 4='Dry Heath and Grassland', 5='Wet Heath', 6='Copse and Tall Shrubs'
+
+
+### Implemented weights for the counts
+# Tests on entire case area
+aov_all_Rnet <- aov(flux_veg_all$Rnet ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_Rnet)
+TukeyHSD(aov_all_Rnet)
+# Anova: Highly significant relationship <0.001 
+# Significant (p<0.05): Wet Heath - Dry Heath
+
+aov_all_G <- aov(flux_veg_all$G ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_G)
+TukeyHSD(aov_all_G)
+# Anova: Highly significant relationship <0.001 
+# Significant: All highly significant, except fen - dry heath
+
+aov_all_H <- aov(flux_veg_all$H ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_H)
+TukeyHSD(aov_all_H)
+# Anova: no significant relationship
+
+aov_all_LE <- aov(flux_veg_all$LE ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_LE)
+TukeyHSD(aov_all_LE)
+# Anova: no significant relationship
+
+aov_all_B <- aov(flux_veg_all$Bowen ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_B)
+TukeyHSD(aov_all_B)
+# Anova: significant. 
+# Significant difference between Wet and Dry Heath (no others)
+
+aov_all_alb <- aov(flux_veg_all$albedo ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_alb)
+TukeyHSD(aov_all_alb)
+# Anova: Highly significant (p<0.001)
+# Significance: Dry Heath Vs. Fen and Wet Heath differ significantly. 
+
+aov_all_fractG <- aov(flux_veg_all$G_fraction ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_fractG)
+TukeyHSD(aov_all_fractG)
+# The ratio of G as a part of Rnet (G/Rnet) differs significantly among all vegetation types! 
+aov_all_fractH <- aov(flux_veg_all$H_fraction ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_fractH)
+TukeyHSD(aov_all_fractH)
+# Even the ratio H as a part of Rnet is not significantly different among vegetation types
+
+aov_all_fractLE <- aov(flux_veg_all$E_fraction ~ flux_veg_all$vegetation, weights = flux_veg_all$count)
+summary(aov_all_fractLE)
+TukeyHSD(aov_all_fractLE)
+# Even the ratio LE as a part of Rnet is not significantly different among vegetation types
+
+##################################################################
+
+
+### Tests on sub case area
+aov_sub_Rnet <- aov(flux_veg_sub$Rnet ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_Rnet)
+TukeyHSD(aov_sub_Rnet)
+# Anova: No significant relationship
+
+aov_sub_G <- aov(flux_veg_sub$G ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_G)
+TukeyHSD(aov_sub_G)
+# Anova: Highly significant relationship <0.001 
+# Significant: All highly significant, except for Wet Heath and Fen. Copse differs significantly from Dry Heath, Fen and Wet Heath with a difference in the mean of 45.04, 39.86 and 38.21 (X - Copse). Likely due to higher LAI - inhibits transmittance of rad. Dry Heath differed also significantly from Fen and Wet Heath but with minor differences compared to the Copse pairs of -5.18 and -6.83 (X - Dry Heath). Likely due to soil moisture differences. 
+
+aov_sub_H <- aov(flux_veg_sub$H ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_H)
+TukeyHSD(aov_sub_H)
+# Anova: No significance given for the subset. 
+# This is surprising as differences in the mean H proved very high significance levels among all vegetation types for the whole case area dataset. 
+
+aov_sub_LE <- aov(flux_veg_sub$LE ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_LE)
+TukeyHSD(aov_sub_LE)
+# Anova: No significance given for the subset. 
+# This is surprising as differences in the mean LE proved very high significance levels for three vegetation type pairs for the whole case area dataset. 
+
+aov_sub_B <- aov(flux_veg_sub$Bowen ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_B)
+TukeyHSD(aov_sub_B)
+# Not significant at all. Presumably because or the high error margin in LE! Not really usable for Bowen ratio. 
+
+aov_sub_alb <- aov(flux_veg_sub$albedo ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_alb)
+TukeyHSD(aov_sub_alb)
+# Anova: Highly significant (p<0.001)
+# Significance: Copse differs significantly from Dry Heath, Fe, Wet Heath with a difference in the mean of -0.03, -0.04, -0.03 (X - Copse). The negative difference indicates that Copse would have a larger albedo than the other parts (?)
+
+aov_sub_fractH <- aov(flux_veg_sub$H_fraction ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_fractH)
+TukeyHSD(aov_sub_fractH)
+# Not significant, either
+
+aov_sub_fractG <- aov(flux_veg_sub$G_fraction ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_fractG)
+TukeyHSD(aov_sub_fractG)
+# Here only Shrub Vs Dry Heath, Wet Heath, Fen & Wet Heath Vs Dry Heath is significantly different. 
+
+aov_sub_fractLE <- aov(flux_veg_sub$E_fraction ~ flux_veg_sub$vegetation, weights = flux_veg_sub$count)
+summary(aov_sub_fractLE)
+TukeyHSD(aov_sub_fractLE)
+
+```
+
+```{r}
+# For interpretations' sake: Manual calc of 'diff' output by TuckeyHSD: Its the difference of the mean! 
+class4 <- flux_veg_all %>% filter(class==4) # Dry Heath
+class3 <- flux_veg_all %>% filter(class==3) #Fen
+mean(class4$Rnet)-mean(class3$Rnet)
+
+
+```
+
+```{r BA FINAL PLOTS}
+
+violin_poly_Rnet <-ggplot(flux_veg_all, aes(as.factor(vegetation), Rnet, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Net radiation (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#F7F497','#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_poly_Rnet
+
+violin_poly_sub_Rnet <-ggplot(flux_veg_sub, aes(as.factor(vegetation), Rnet, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Net radiation (W/m^2)")+
+  labs(title="Sub case area")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#F7F497', '#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_poly_sub_Rnet
+
+violin_poly_G <-ggplot(flux_veg_all, aes(as.factor(vegetation), G, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#F7F497','#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_poly_G
+
+violin_poly_sub_G <-ggplot(flux_veg_sub, aes(as.factor(vegetation), G, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Sub case area")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#F7F497','#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_poly_sub_G
+
+violin_poly_H <-ggplot(flux_veg_all, aes(as.factor(vegetation), H, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Sensible heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#F7F497','#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_poly_H
+
+violin_poly_sub_H <-ggplot(flux_veg_sub, aes(as.factor(vegetation), H, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Sensible heat flux (W/m^2)")+
+  labs(title="Sub case area")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#F7F497','#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_poly_sub_H
+
+violin_poly_LE <-ggplot(flux_veg_all, aes(as.factor(vegetation), LE, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Latent heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#F7F497','#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+
+violin_poly_LE
+
+violin_poly_sub_LE <-ggplot(flux_veg_sub, aes(as.factor(vegetation), LE, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Latent heat flux (W/m^2)")+
+  labs(title="Sub case area")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+ 
+  scale_fill_manual(values = c('#F7F497','#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_poly_sub_LE
+
+
+```
+
+
+```{r}
+box_poly_G <-ggplot(flux_veg_all, aes(as.factor(class), G))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_boxplot(fill="orchid")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+box_poly_G
+
+violin_poly_G <-ggplot(flux_veg_all, aes(as.factor(vegetation), G))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", fill="orchid")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+violin_poly_G
+
+violin_poly_sub_G <-ggplot(flux_veg_sub, aes(as.factor(vegetation), G, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Sub case area")+
+  geom_violin(scale="area")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+violin_poly_sub_G
+
+dot_poly_G <-ggplot(flux_veg_all, aes(as.factor(class), G))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_dotplot(binaxis="y", stackdir="center", fill=class)+
+  theme_bw()+
+  theme(legend.position = "none")
+
+dot_poly_G
+
+dns_poly_G <-ggplot(flux_veg_all, aes(x=G, color=class))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_density(kernel = "gaussian")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+dns_poly_G
+
+plot_poly_H <-ggplot(flux_veg_all, aes(as.factor(class), H))+
+  xlab("Land Cover Class")+
+  ylab("Sensible heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_boxplot(fill="orchid")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_poly_H
+
+plot_poly_LE <-ggplot(flux_veg_all, aes(as.factor(class), LE))+
+  xlab("Land Cover Class")+
+  ylab("Latent heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_boxplot(fill="orchid")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_poly_LE
+
+plot_poly_Rnet <-ggplot(flux_veg_all, aes(as.factor(class), Rnet))+
+  xlab("Land Cover Class")+
+  ylab("net Radiation (W/m^2)")+
+  labs(title="Whole casearea")+
+  ylim(400,670)+
+  geom_boxplot(fill="orchid", na.rm = T)+
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_poly_Rnet
+
+
+```
+
+```{r IMPORT AND PREP PIXEL DATASETS}
+
+### The same code for the pixels dataset: 
+
+pixels_all <- read_csv("./GEE/10062019_pixels_all.csv") 
+pixels_sub <- read_csv("./GEE/10062019_pixels_sub.csv")
+
+head(pixels_all)
+
+pixels_all <- pixels_all %>% dplyr::rename(lc = b1) %>% mutate(vegetation = case_when((lc == 1) ~ 'Barren Ground', (lc == 2) ~ 'Abrasion surfaces', (lc == 3) ~ 'Fen', (lc == 4) ~ 'Dry Heath', (lc == 5) ~ 'Wet Heath', (lc ==  6) ~ 'Copse Shrub', (lc == 7) ~ 'Shadow', (lc == 8) ~ 'Water', (lc == 9) ~ 'Snow'))
+
+pixels_sub <- pixels_sub %>% dplyr::rename(lc = b1) %>% mutate(vegetation = case_when((lc == 1) ~ 'Barren Ground', (lc == 2) ~ 'Abrasion surfaces', (lc == 3) ~ 'Fen', (lc == 4) ~ 'Dry Heath', (lc == 5) ~ 'Wet Heath', (lc ==  6) ~ 'Copse Shrub', (lc == 7) ~ 'Shadow', (lc == 8) ~ 'Water', (lc == 9) ~ 'Snow'))
+
+pixels_all$lc <- as.factor(pixels_all$lc)
+pixels_sub$lc <- as.factor(pixels_sub$lc)
+pixels_all$vegetation <- as.factor(pixels_all$vegetation)
+pixels_sub$vegetation <- as.factor(pixels_sub$vegetation)
+
+str(pixels_all)
+
+pixels_veg_all <- pixels_all %>% filter(lc== (3:6))
+pixels_veg_sub <- pixels_sub %>% filter(lc== (3:6))
+```
+
+```{r PLOTTING PIXELS}
+violin_pix_Rnet <-ggplot(pixels_veg_all, aes(as.factor(vegetation), Rnet, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Net radiation (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_pix_Rnet
+
+
+violin_pix_G <-ggplot(pixels_veg_all, aes(as.factor(vegetation), G, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_pix_G
+
+violin_pix_H <-ggplot(pixels_veg_all, aes(as.factor(vegetation), H, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Sensible heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_pix_H
+
+violin_pix_LE <-ggplot(pixels_veg_all, aes(as.factor(vegetation), LE, fill=vegetation))+
+  xlab("Land Cover Class")+
+  ylab("Latent heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_violin(scale="area", alpha=0.7)+
+  theme_bw()+
+  theme(legend.position = "none")+
+  scale_fill_manual(values = c('#6C007A','#A5FF75', '#FF8F8F','#1E5700'))
+
+violin_pix_LE
+
+
+```
+
+
+```{r ANOVA AND TUKEY HSD FOR VEGGY TYPES OF PIXEL DATASET}
+# CLASSES 3='Fen', 4='Dry Heath and Grassland', 5='Wet Heath', 6='Copse and Tall Shrubs'
+
+# Tests on entire case area
+aov_pix_all_Rnet <- aov(pixels_veg_all$Rnet ~ pixels_veg_all$vegetation)
+summary(aov_pix_all_Rnet)
+TukeyHSD(aov_pix_all_Rnet)
+# Anova: Highly significant. HSD: All pairs highly significant, most even p<0.001.
+
+aov_pix_all_G <- aov(pixels_veg_all$G ~ pixels_veg_all$vegetation)
+summary(aov_pix_all_G)
+TukeyHSD(aov_pix_all_G)
+# Anova: Highly significant. HSD: All pairs highly significant.
+
+aov_pix_all_H <- aov(pixels_veg_all$H ~ pixels_veg_all$vegetation)
+summary(aov_pix_all_H)
+TukeyHSD(aov_pix_all_H)
+# Anova: Highly significant. HSD: All pairs highly significant, despite from Fen - Copse Shrub
+
+aov_pix_all_LE <- aov(pixels_veg_all$LE ~ pixels_veg_all$vegetation)
+summary(aov_pix_all_LE)
+TukeyHSD(aov_pix_all_LE)
+# Anova: Highly significant. HSD: All pairs highly significant, Fen - Copse Shrub a little less (p=0.005), despite from Fen - Dry Heath (p = 0.823). 
+
+
+```
+
+```{r PLOTS FOR THE PIXEL DATASET}
+
+### STD per klasse 
+### GEOMPOINT (density) for hver parameter, alfa, gitter (?)
+
+plot_pix_G <-ggplot(pixels_veg_all, aes(as.factor(lc), G))+
+  xlab("Land Cover Class")+
+  ylab("Soil heat flux (W/m^2)")+
+  labs(title="Whole casearea on pixel base")+
+  geom_boxplot(fill="orchid")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_pix_G
+
+plot_pix_H <-ggplot(pixels_veg_all, aes(as.factor(lc), H))+
+  xlab("Land Cover Class")+
+  ylab("Sensible heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_boxplot(fill="orchid")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_pix_H
+
+plot_pix_LE <-ggplot(pixels_veg_all, aes(as.factor(lc), LE))+
+  xlab("Land Cover Class")+
+  ylab("Latent heat flux (W/m^2)")+
+  labs(title="Whole casearea")+
+  geom_boxplot(fill="orchid")+
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_pix_LE
+
+plot_pix_Rnet <-ggplot(pixels_veg_all, aes(as.factor(lc), Rnet))+
+  xlab("Land Cover Class")+
+  ylab("net Radiation (W/m^2)")+
+  labs(title="Whole casearea")+
+  ylim(400,670)+
+  geom_boxplot(fill="orchid", na.rm = T)+
+  theme_bw()+
+  theme(legend.position = "none")
+
+plot_pix_Rnet
+
+```
+
+```{r}
+# Load all flux data 
+rp_all <- read_csv("./GEE/10062019_rp_all.csv") 
+rp_sub <- read_csv("./GEE/10062019_rp_sub.csv")
+
+head(rp_all)
+
+rp_all <- rp_all %>% dplyr::rename(lc = b1) %>% mutate(vegetation = case_when((lc == 1) ~ 'Barren Ground', (lc == 2) ~ 'Abrasion surfaces', (lc == 3) ~ 'Fen', (lc == 4) ~ 'Dry Heath', (lc == 5) ~ 'Wet Heath', (lc ==  6) ~ 'Copse Shrub', (lc == 7) ~ 'Shadow', (lc == 8) ~ 'Water', (lc == 9) ~ 'Snow'))
+
+rp_sub <- rp_sub %>% dplyr::rename(lc = b1) %>% mutate(vegetation = case_when((lc == 1) ~ 'Barren Ground', (lc == 2) ~ 'Abrasion surfaces', (lc == 3) ~ 'Fen', (lc == 4) ~ 'Dry Heath', (lc == 5) ~ 'Wet Heath', (lc ==  6) ~ 'Copse Shrub', (lc == 7) ~ 'Shadow', (lc == 8) ~ 'Water', (lc == 9) ~ 'Snow'))
+
+rp_all$lc <- as.factor(rp_all$lc)
+rp_sub$lc <- as.factor(rp_sub$lc)
+rp_all$vegetation <- as.factor(rp_all$vegetation)
+rp_sub$vegetation <- as.factor(rp_sub$vegetation)
+
+str(rp_all)
+
+rp_veg_all <- rp_all %>% filter(lc== (3:6))
+rp_veg_sub <- rp_sub %>% filter(lc== (3:6))
+
+```
+
+```{r}
+# CLASSES 3='Fen', 4='Dry Heath and Grassland', 5='Wet Heath', 6='Copse and Tall Shrubs'
+
+# Tests on entire case area
+aov_rp_all_Rnet <- aov(rp_veg_all$Rnet ~ rp_veg_all$vegetation)
+summary(aov_rp_all_Rnet)
+TukeyHSD(aov_rp_all_Rnet)
+# Anova: 
+
+aov_rp_all_G <- aov(rp_veg_all$G ~ rp_veg_all$vegetation)
+summary(aov_rp_all_G)
+TukeyHSD(aov_rp_all_G)
+# Anova: 
+
+aov_rp_all_H <- aov(rp_veg_all$H ~ rp_veg_all$vegetation)
+summary(aov_rp_all_H)
+TukeyHSD(aov_rp_all_H)
+# Anova: 
+
+aov_rp_all_LE <- aov(rp_veg_all$LE ~ rp_veg_all$vegetation)
+summary(aov_rp_all_LE)
+TukeyHSD(aov_rp_all_LE)
+# Anova: 
+
+
+#SUBSET
+# Tests on entire case area
+aov_rp_all_Rnet <- aov(rp_veg_sub$Rnet ~ rp_veg_sub$vegetation)
+summary(aov_rp_all_Rnet)
+TukeyHSD(aov_rp_all_Rnet)
+# Anova: 
+
+aov_rp_all_G <- aov(rp_veg_sub$G ~ rp_veg_sub$vegetation)
+summary(aov_rp_all_G)
+TukeyHSD(aov_rp_all_G)
+# Anova: 
+
+aov_rp_all_H <- aov(rp_veg_sub$H ~ rp_veg_sub$vegetation)
+summary(aov_rp_all_H)
+TukeyHSD(aov_rp_all_H)
+# Anova: 
+
+aov_rp_all_LE <- aov(rp_veg_sub$LE ~ rp_veg_sub$vegetation)
+summary(aov_rp_all_LE)
+TukeyHSD(aov_rp_all_LE)
+# Anova: 
+```
+
